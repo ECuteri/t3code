@@ -1886,6 +1886,17 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: {
                       />
                       <TooltipPopup side="top">Dismiss Woke notification</TooltipPopup>
                     </Tooltip>
+                  ) : status === "working" && topStatus ? (
+                    // Compact Working rows keep the live status on their one line.
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 text-xs font-medium",
+                        topStatus.className,
+                      )}
+                    >
+                      <CircleDashedIcon aria-hidden className="size-3.5 shrink-0" />
+                      <WorkingDuration startedAt={resolveWorkingStartedAt(thread)} />
+                    </span>
                   ) : (
                     <span className="text-xs">
                       {variantAction === "unsettle"
@@ -2429,6 +2440,7 @@ export default function Sidebar() {
   const sidebarProjectSortOrder = useClientSettings((s) => s.sidebarProjectSortOrder);
   const timestampFormat = useClientSettings((s) => s.timestampFormat);
   const workingShelfEnabled = useClientSettings((s) => s.sidebarWorkingShelfEnabled);
+  const compactWorkingRows = useClientSettings((s) => s.sidebarCompactWorkingRows);
   const projectGroupingSettings = useClientSettings(selectProjectGroupingSettings);
   const {
     settleThread,
@@ -5336,7 +5348,9 @@ export default function Sidebar() {
                         // not from the sidebar second-guessing what still matters.
                         // Working rows stay cards so their live status shows.
                         const isCard =
-                          section === "active" || section === "pinned" || section === "working";
+                          section === "active" ||
+                          section === "pinned" ||
+                          (section === "working" && !compactWorkingRows);
                         const rowVariant = isCard ? "card" : "slim";
                         return (
                           <SidebarThreadRow

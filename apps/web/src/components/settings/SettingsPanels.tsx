@@ -578,6 +578,9 @@ export function useSettingsRestore(onRestored?: () => void) {
       DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled
         ? ["Working section"]
         : []),
+      ...(settings.sidebarCompactWorkingRows !== DEFAULT_UNIFIED_SETTINGS.sidebarCompactWorkingRows
+        ? ["Compact working rows"]
+        : []),
       ...(settings.sidebarAutoSettleAfterDays !==
       DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays
         ? ["Auto-settle inactive threads"]
@@ -714,6 +717,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       settings.sidebarProjectGroupingMode,
       settings.sidebarProjectSortOrder,
       settings.sidebarWorkingShelfEnabled,
+      settings.sidebarCompactWorkingRows,
       settings.sidebarThreadPreviewCount,
       settings.showSkillsInSlashMenu,
       settings.timestampFormat,
@@ -814,6 +818,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       sidebarProjectGroupingMode: DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode,
       sidebarProjectSortOrder: DEFAULT_UNIFIED_SETTINGS.sidebarProjectSortOrder,
       sidebarWorkingShelfEnabled: DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled,
+      sidebarCompactWorkingRows: DEFAULT_UNIFIED_SETTINGS.sidebarCompactWorkingRows,
       sidebarAutoSettleAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
       sidebarAutoSettleOnMerge: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleOnMerge,
       autoResumeLimitedThreads: DEFAULT_UNIFIED_SETTINGS.autoResumeLimitedThreads,
@@ -2403,6 +2408,35 @@ export function GeneralSettingsPanel() {
             />
           }
         />
+
+        {settings.sidebarWorkingShelfEnabled ? (
+          <SettingsRow
+            {...searchableSetting("compact-working-rows")}
+            description="Show threads in the Working section as single-line rows, like Settled."
+            resetAction={
+              settings.sidebarCompactWorkingRows !==
+              DEFAULT_UNIFIED_SETTINGS.sidebarCompactWorkingRows ? (
+                <SettingResetButton
+                  label="compact working rows"
+                  onClick={() =>
+                    updateSettings({
+                      sidebarCompactWorkingRows: DEFAULT_UNIFIED_SETTINGS.sidebarCompactWorkingRows,
+                    })
+                  }
+                />
+              ) : null
+            }
+            control={
+              <Switch
+                checked={settings.sidebarCompactWorkingRows}
+                onCheckedChange={(checked) =>
+                  updateSettings({ sidebarCompactWorkingRows: Boolean(checked) })
+                }
+                aria-label="Compact working rows"
+              />
+            }
+          />
+        ) : null}
 
         {supportsAutoSettlement ? (
           <>
