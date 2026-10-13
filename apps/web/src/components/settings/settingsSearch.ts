@@ -365,6 +365,8 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "compact-working-rows",
     title: "Compact working rows",
     to: "/settings/general",
+    // The row only mounts with the Working section on; land on its switch.
+    targetId: "working-shelf",
     searchTerms: ["single line slim dense sidebar working shelf"],
   },
   {
