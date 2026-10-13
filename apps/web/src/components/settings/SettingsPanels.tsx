@@ -1891,7 +1891,7 @@ function TypographySection() {
         settingKey="hideReasoning"
         searchId="hide-reasoning"
         label="Hide reasoning"
-        description="Hide model reasoning and intermediate commentary; show only the final answer."
+        description="Hide model reasoning and intermediate commentary. Tool activity and the final answer stay visible."
       />
     </SettingsSection>
   );

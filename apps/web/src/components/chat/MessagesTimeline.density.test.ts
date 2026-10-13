@@ -4,12 +4,16 @@ import { applyTimelineDensity, type MessagesTimelineRow } from "./MessagesTimeli
 type WorkEntry = Extract<MessagesTimelineRow, { kind: "work" }>["groupedEntries"][number];
 const entry = (id: string, itemType: string) =>
   ({ id, itemType, createdAt: "2026-01-01T00:00:00Z" }) as unknown as WorkEntry;
-const work = (id: string, entries: WorkEntry[]): MessagesTimelineRow => ({
+const work = (
+  id: string,
+  entries: WorkEntry[],
+  isExpandedToolGroup = false,
+): MessagesTimelineRow => ({
   kind: "work",
   id,
   createdAt: "2026-01-01T00:00:00Z",
   groupedEntries: entries,
-  isExpandedToolGroup: true,
+  isExpandedToolGroup,
 });
 const assistant = (id: string, showAssistantMeta: boolean) =>
   ({
@@ -53,5 +57,29 @@ describe("applyTimelineDensity", () => {
     ];
     const result = applyTimelineDensity(live, { compactWorkLog: true, hideReasoning: true });
     expect(result.map((row) => row.id)).toEqual(["w2"]);
+  });
+
+  it("keeps a terminal answer whose meta moved below trailing tools", () => {
+    const settled = [
+      assistant("m1", false),
+      work("w1", [entry("c1", "command_execution")]),
+      {
+        kind: "assistant-meta",
+        id: "assistant-meta:m1",
+        createdAt: "2026-01-01T00:00:00Z",
+        message: { id: "m1", role: "assistant", runId: "run-1" },
+      } as unknown as MessagesTimelineRow,
+    ];
+    const result = applyTimelineDensity(settled, { compactWorkLog: false, hideReasoning: true });
+    expect(result.map((row) => row.id)).toEqual(["m1", "w1", "assistant-meta:m1"]);
+  });
+
+  it("leaves a run the user expanded intact", () => {
+    const expanded = [
+      work("w1", [entry("c1", "command_execution"), entry("c2", "command_execution")], true),
+      work("w2", [entry("c3", "command_execution")], true),
+    ];
+    const result = applyTimelineDensity(expanded, { compactWorkLog: true, hideReasoning: false });
+    expect(result).toEqual(expanded);
   });
 });

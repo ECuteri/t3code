@@ -951,9 +951,10 @@ const ConversationTimeline = memo(function ConversationTimeline({
   ]);
   const compactWorkLog = useClientSettings((settings) => settings.compactWorkLog);
   const hideReasoning = useClientSettings((settings) => settings.hideReasoning);
+  // Find must reach every row, so density only applies while it is closed.
   const densityRows = useMemo(
-    () => applyTimelineDensity(rawRows, { compactWorkLog, hideReasoning }),
-    [rawRows, compactWorkLog, hideReasoning],
+    () => (findActive ? rawRows : applyTimelineDensity(rawRows, { compactWorkLog, hideReasoning })),
+    [findActive, rawRows, compactWorkLog, hideReasoning],
   );
   const rows = useStableRows(densityRows, listIdentityKey);
   // Run status/timestamps churn on every stream event; the shared row context

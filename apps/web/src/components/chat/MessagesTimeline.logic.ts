@@ -2379,6 +2379,12 @@ const isWorkLogTimelineRow = (row: MessagesTimelineRow) =>
   row.kind === "work-toggle" ||
   row.kind === "thinking";
 
+const workLogRowIsExpanded = (row: MessagesTimelineRow) =>
+  row.kind === "work"
+    ? row.isExpandedToolGroup
+    : (row.kind === "work-live" || row.kind === "work-toggle" || row.kind === "thinking") &&
+      row.expanded === true;
+
 /**
  * Display-only pass over derived rows for the `hideReasoning` and
  * `compactWorkLog` client settings. Runs after derivation so the incremental
@@ -2392,9 +2398,13 @@ export function applyTimelineDensity(
   let result = rows;
 
   if (options.hideReasoning) {
-    // Commentary = an assistant message without meta that is followed, within
+    // Commentary = a non-terminal assistant message that is followed, within
     // the same turn, by more work or another assistant message. The trailing
     // message (final answer, or the commentary still streaming) stays visible.
+    // Terminal answers whose meta moved below trailing tools are still terminal.
+    const relocatedMetaMessageIds = new Set(
+      result.flatMap((row) => (row.kind === "assistant-meta" ? [row.message.id] : [])),
+    );
     const hiddenCommentaryIds = new Set<string>();
     let laterActivityInTurn = false;
     for (let index = result.length - 1; index >= 0; index -= 1) {
@@ -2404,7 +2414,8 @@ export function applyTimelineDensity(
         continue;
       }
       if (row.kind === "message" && row.message.role === "assistant") {
-        if (!row.showAssistantMeta && laterActivityInTurn) hiddenCommentaryIds.add(row.id);
+        const isTerminal = row.showAssistantMeta || relocatedMetaMessageIds.has(row.message.id);
+        if (!isTerminal && laterActivityInTurn) hiddenCommentaryIds.add(row.id);
         laterActivityInTurn = true;
       } else if (isWorkLogTimelineRow(row)) {
         laterActivityInTurn = true;
@@ -2434,8 +2445,20 @@ export function applyTimelineDensity(
   if (options.compactWorkLog) {
     // Each run of consecutive work-log rows collapses to its last row, and a
     // work group to its last entry, so the line updates instead of growing.
+    // A run the user expanded stays intact so its disclosure still works.
+    const expandedRunRowIds = new Set<string>();
+    let run: MessagesTimelineRow[] = [];
+    for (const row of [...result, null]) {
+      if (row !== null && isWorkLogTimelineRow(row)) {
+        run.push(row);
+        continue;
+      }
+      if (run.some(workLogRowIsExpanded))
+        for (const runRow of run) expandedRunRowIds.add(runRow.id);
+      run = [];
+    }
     result = result.flatMap((row, index): MessagesTimelineRow[] => {
-      if (!isWorkLogTimelineRow(row)) return [row];
+      if (!isWorkLogTimelineRow(row) || expandedRunRowIds.has(row.id)) return [row];
       const next = result[index + 1];
       if (next !== undefined && isWorkLogTimelineRow(next)) return [];
       const compactRow: MessagesTimelineRow = { ...row, continuesWorkLog: false };
@@ -2448,7 +2471,6 @@ export function applyTimelineDensity(
           },
         ];
       }
-      if (compactRow.kind === "work-live") return [{ ...compactRow, expanded: false }];
       return [compactRow];
     });
   }
