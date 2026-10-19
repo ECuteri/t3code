@@ -97,15 +97,20 @@ const relaySettings: RelayConfiguration.RelayConfiguration["Service"] = {
   managedEndpointNamespace: undefined,
 };
 
+const encodeLinkRequest = Schema.encodeEffect(Schema.fromJsonString(RelayEnvironmentLinkRequest));
+const decodeLinkUnavailableError = Schema.decodeUnknownEffect(RelayEnvironmentLinkUnavailableError);
+
 describe("managed endpoint provisioning errors", () => {
   it.effect("returns the failed stage without exposing provider secrets through HTTP", () => {
-    const handlers = clientApi.pipe(
+    let traceId = "";
+    const handlers = RelayHttpApi.layerClientApi.pipe(
       HttpRouter.provideRequest(
         Layer.mergeAll(
           Layer.mock(EnvironmentCredentials.EnvironmentCredentials, {}),
           Layer.mock(EnvironmentLinks.EnvironmentLinks, {}),
           Layer.mock(ManagedEndpointProvider.ManagedEndpointProvider, {}),
           Layer.mock(RelayDb.RelayTransactions, {}),
+          Layer.mock(HookInbox.HookInbox, {}),
         ),
       ),
       Layer.provide(
@@ -115,15 +120,16 @@ describe("managed endpoint provisioning errors", () => {
           Layer.mock(RelayTokens.RelayTokens, { resolveDpopAccessTokenScopes: () => null }),
           Layer.mock(EnvironmentLinker.EnvironmentLinker, {
             link: () =>
-              Effect.fail(
-                new ManagedEndpointProvider.ManagedEndpointProvisioningFailed({
+              Effect.gen(function* () {
+                traceId = (yield* Effect.currentSpan.pipe(Effect.orDie)).traceId;
+                return yield* new ManagedEndpointProvider.ManagedEndpointProvisioningFailed({
                   userId: "user-1",
                   environmentId: "environment-1",
                   stage: "ensure-tunnel",
                   tunnelId: "private-tunnel-id",
                   cause: new Error("private-provider-token"),
-                }),
-              ),
+                });
+              }),
           }),
           Layer.mock(EnvironmentLinks.EnvironmentLinks, {}),
           Layer.mock(ManagedEndpointProvider.ManagedEndpointProvider, {}),
@@ -153,9 +159,7 @@ describe("managed endpoint provisioning errors", () => {
         ),
         (app) => Effect.promise(() => app.dispose()),
       );
-      const payload = yield* Schema.encodeEffect(
-        Schema.fromJsonString(RelayEnvironmentLinkRequest),
-      )({
+      const payload = yield* encodeLinkRequest({
         proof: "test-proof",
         notificationsEnabled: false,
         liveActivitiesEnabled: false,
@@ -165,7 +169,10 @@ describe("managed endpoint provisioning errors", () => {
         app.handler(
           new Request("https://relay.example.test/v1/client/environment-links", {
             method: "POST",
-            headers: { authorization: "Bearer test-token", "content-type": "application/json" },
+            headers: {
+              authorization: "Bearer test-token",
+              "content-type": "application/json",
+            },
             body: payload,
           }),
         ),
@@ -177,9 +184,9 @@ describe("managed endpoint provisioning errors", () => {
         code: "environment_link_unavailable",
         reason: "managed_endpoint_provisioning_failed",
         provisioningStage: "ensure-tunnel",
-        traceId: expect.any(String),
+        traceId,
       });
-      const error = yield* Schema.decodeUnknownEffect(RelayEnvironmentLinkUnavailableError)(body);
+      const error = yield* decodeLinkUnavailableError(body);
       expect(relayProtectedErrorMessage(error)).toBe(
         "Relay cannot provision the managed endpoint (managed_endpoint_provisioning_failed). Failed stage: ensure-tunnel.",
       );

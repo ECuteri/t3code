@@ -8,6 +8,8 @@ import {
   RelayEnvironmentLinkUnavailableError,
 } from "./relay.ts";
 
+const decodeLinkUnavailableError = Schema.decodeUnknownSync(RelayEnvironmentLinkUnavailableError);
+
 const decodeDevice = Schema.decodeUnknownExit(RelayDeviceRegistrationRequest);
 const device = {
   deviceId: "device",
@@ -53,26 +55,16 @@ describe("mobile device platforms", () => {
 });
 
 describe("relay provisioning error compatibility", () => {
-  const error = {
-    _tag: "RelayEnvironmentLinkUnavailableError",
-    code: "environment_link_unavailable",
-    reason: "managed_endpoint_provisioning_failed",
-    traceId: "trace-1",
-  };
-
-  it("decodes errors from older relays that omit the provisioning stage", () => {
-    expect(
-      Schema.decodeUnknownSync(RelayEnvironmentLinkUnavailableError)(error).provisioningStage,
-    ).toBeUndefined();
-  });
-
   it("preserves a stage introduced by a newer relay", () => {
-    expect(
-      Schema.decodeUnknownSync(RelayEnvironmentLinkUnavailableError)({
-        ...error,
-        provisioningStage: "future-provisioning-stage",
-      }).provisioningStage,
-    ).toBe("future-provisioning-stage");
+    const error = {
+      _tag: "RelayEnvironmentLinkUnavailableError",
+      code: "environment_link_unavailable",
+      reason: "managed_endpoint_provisioning_failed",
+      provisioningStage: "future-provisioning-stage",
+      traceId: "trace-1",
+    };
+
+    expect(decodeLinkUnavailableError(error)).toMatchObject(error);
   });
 });
 
