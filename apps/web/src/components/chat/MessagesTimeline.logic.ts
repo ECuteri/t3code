@@ -2614,7 +2614,7 @@ export function applyTimelineDensity(
     for (let index = result.length - 1; index >= 0; index -= 1) {
       const row = result[index]!;
       if (row.kind === "message" && row.message.role === "user") {
-        laterActivityInTurn = false;
+        if (!messageIsSteer(row.message)) laterActivityInTurn = false;
         continue;
       }
       if (row.kind === "message" && row.message.role === "assistant") {
@@ -2693,6 +2693,22 @@ export function applyTimelineDensity(
       const next = result[index + 1];
       if (next !== undefined && isWorkLogTimelineRow(next)) return [];
       const compactRow: MessagesTimelineRow = { ...row, continuesWorkLog: false };
+      if (compactRow.kind === "work-toggle") {
+        const latest = compactRow.groupedEntries.at(-1);
+        if (latest === undefined) return [compactRow];
+        return [
+          {
+            ...compactRow,
+            summary:
+              toolGroupAction(latest) === "edit"
+                ? summarizeToolGroup([latest]).summary
+                : singleToolCallLabel(latest),
+            summaryKind: toolGroupSummaryKind([latest]),
+            toolSurface: latest.toolSurface,
+            toolIcon: latest.toolIcon ?? latest.toolSource?.icon,
+          },
+        ];
+      }
       if (compactRow.kind === "work") {
         return [
           {

@@ -53,6 +53,21 @@ describe("applyTimelineDensity", () => {
     const last = result[0] as Extract<MessagesTimelineRow, { kind: "work" }>;
     expect(last.groupedEntries.map((e) => e.id)).toEqual(["c3"]);
     expect(last.isExpandedToolGroup).toBe(false);
+    const entries = [entry("first", "command_execution"), entry("latest", "command_execution")];
+    const derived = deriveMessagesTimelineRows({
+      timelineEntries: entries.map((entry) => ({
+        kind: "work",
+        id: entry.id,
+        createdAt: entry.createdAt,
+        entry,
+      })),
+      isWorking: false,
+      turnDiffSummaries: [],
+      supportsConversationRollback: false,
+    });
+    expect(
+      applyTimelineDensity(derived, { compactWorkLog: true, hideReasoning: false })[0],
+    ).toMatchObject({ kind: "work-toggle", summary: "latest", groupedEntries: entries });
   });
 
   it("hideReasoning alone keeps tool rows and the final answer", () => {
@@ -68,6 +83,17 @@ describe("applyTimelineDensity", () => {
     ];
     const result = applyTimelineDensity(live, { compactWorkLog: true, hideReasoning: true });
     expect(result.map((row) => row.id)).toEqual(["w2"]);
+    const steer = {
+      kind: "message",
+      id: "steer",
+      createdAt: "2026-01-01T00:00:00Z",
+      message: { id: "steer", role: "user", inputIntent: "steer", runId: "run-1" },
+    } as unknown as MessagesTimelineRow;
+    const steered = applyTimelineDensity([live[1]!, steer, live[2]!], {
+      compactWorkLog: true,
+      hideReasoning: true,
+    });
+    expect(steered.map((row) => row.id)).toEqual(["steer", "w2"]);
   });
 
   it("keeps a terminal answer whose meta moved below trailing tools", () => {
