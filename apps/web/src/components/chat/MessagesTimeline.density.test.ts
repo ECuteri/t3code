@@ -92,6 +92,23 @@ describe("applyTimelineDensity", () => {
     ];
     const result = applyTimelineDensity(expanded, { compactWorkLog: true, hideReasoning: false });
     expect(result).toEqual(expanded);
+    const live: MessagesTimelineRow = {
+      kind: "work-live",
+      id: "live",
+      createdAt: "2026-01-01T00:00:00Z",
+      entry: entry("reasoning", "reasoning"),
+      groupedEntries: [entry("tool", "command_execution"), entry("reasoning", "reasoning")],
+      groupId: "work-group:tool",
+      expanded: true,
+      active: true,
+    };
+    expect(
+      applyTimelineDensity([live, ...expanded], { compactWorkLog: true, hideReasoning: true })[0],
+    ).toMatchObject({
+      kind: "thinking",
+      groupId: "work-group:tool",
+      expanded: true,
+    });
   });
   it("keeps a streaming answer before the synthetic thinking indicator", () => {
     const result = applyTimelineDensity(

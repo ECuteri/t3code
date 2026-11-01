@@ -2651,7 +2651,18 @@ export function applyTimelineDensity(
       if (row.kind === "work-live") {
         const groupedEntries = row.groupedEntries.filter((entry) => entry.itemType !== "reasoning");
         if (row.entry.itemType === "reasoning") {
-          return row.active ? [{ kind: "thinking", id: row.id, createdAt: row.createdAt }] : [];
+          return row.active
+            ? [
+                {
+                  kind: "thinking",
+                  id: row.id,
+                  createdAt: row.createdAt,
+                  ...(groupedEntries.length > 0
+                    ? { groupId: row.groupId, expanded: row.expanded }
+                    : {}),
+                },
+              ]
+            : [];
         }
         if (row.thought === undefined && groupedEntries.length === row.groupedEntries.length)
           return [row];
