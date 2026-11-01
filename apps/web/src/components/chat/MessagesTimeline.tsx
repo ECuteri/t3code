@@ -1,3 +1,4 @@
+import { useClientSettings } from "../../hooks/useSettings";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
 import type { ToolCallDiffTarget } from "../../diffPanelStore";
@@ -678,14 +679,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
   );
   const compactWorkLog = useClientSettings((settings) => settings.compactWorkLog);
   const hideReasoning = useClientSettings((settings) => settings.hideReasoning);
-  const densityEntries =
-    hideReasoning && !findActive
-      ? timelineEntries.filter(
-          (entry) => entry.kind !== "work" || entry.entry.itemType !== "reasoning",
-        )
-      : timelineEntries;
   const rawRows = useIncrementalTimelineRows(`${listIdentityKey}\0${workspaceRoot ?? ""}`, {
-    timelineEntries: densityEntries,
+    timelineEntries,
     pendingApprovalRequestIds,
     latestRun,
     runningRunId,
@@ -701,9 +696,10 @@ const ConversationTimeline = memo(function ConversationTimeline({
     availableRevertTurnCounts,
     worktreeSetup,
   });
-  const densityRows = findActive
-    ? rawRows
-    : applyTimelineDensity(rawRows, { compactWorkLog, hideReasoning });
+  const densityRows =
+    findActive || citationRequest !== null
+      ? rawRows
+      : applyTimelineDensity(rawRows, { compactWorkLog, hideReasoning });
   const rows = useStableRows(densityRows, listIdentityKey);
   const matchedApprovalRequestIds = new Set<string>();
   for (const row of pendingApprovalRequestIds.size > 0 ? rows : []) {

@@ -540,6 +540,7 @@ type MessagesTimelineRowContent =
     }
   | {
       kind: "work-toggle";
+      groupedEntries: WorkLogEntry[];
       id: string;
       createdAt: string;
       runId?: RunId | null;
@@ -1911,6 +1912,7 @@ export function deriveMessagesTimelineRows(input: {
             visibleGroupedEntries.length === 1 ? (visibleGroupedEntries[0] ?? null) : null;
           nextRows.push({
             kind: "work-toggle",
+            groupedEntries: visibleGroupedEntries,
             id: `work-toggle:${timelineEntry.id}`,
             createdAt: timelineEntry.createdAt,
             runId: timelineEntry.entry.runId ?? null,
@@ -2488,6 +2490,7 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
         a.createdAt === bw.createdAt &&
         a.runId === bw.runId &&
         a.groupId === bw.groupId &&
+        Equal.equals(a.groupedEntries, bw.groupedEntries) &&
         a.hiddenCount === bw.hiddenCount &&
         a.expanded === bw.expanded &&
         a.summary === bw.summary &&
@@ -2569,7 +2572,13 @@ export function sameRowsInput(
 }
 
 const isWorkLogTimelineRow = (row: MessagesTimelineRow) =>
-  row.kind === "work" ||
+  (row.kind === "work" &&
+    row.groupedEntries.every(
+      (entry) =>
+        (workLogEntryIsToolLike(entry) || entry.itemType === "reasoning") &&
+        entry.tone !== "error" &&
+        entry.questionAnswer === undefined,
+    )) ||
   row.kind === "work-live" ||
   row.kind === "work-toggle" ||
   row.kind === "thinking";
@@ -2612,7 +2621,7 @@ export function applyTimelineDensity(
         const isTerminal = row.showAssistantMeta || relocatedMetaMessageIds.has(row.message.id);
         if (!isTerminal && laterActivityInTurn) hiddenCommentaryIds.add(row.id);
         laterActivityInTurn = true;
-      } else if (isWorkLogTimelineRow(row)) {
+      } else if (isWorkLogTimelineRow(row) && row.kind !== "thinking") {
         laterActivityInTurn = true;
       }
     }
@@ -2625,13 +2634,29 @@ export function applyTimelineDensity(
           ? [row]
           : [{ ...row, groupedEntries }];
       }
+      if (row.kind === "work-toggle") {
+        const groupedEntries = row.groupedEntries.filter((entry) => entry.itemType !== "reasoning");
+        if (groupedEntries.length === 0) return [];
+        if (groupedEntries.length === row.groupedEntries.length) return [row];
+        return [
+          {
+            ...row,
+            groupedEntries,
+            hiddenCount: groupedEntries.length,
+            summary: summarizeToolGroup(groupedEntries).summary,
+            summaryKind: toolGroupSummaryKind(groupedEntries),
+          },
+        ];
+      }
       if (row.kind === "work-live") {
+        const groupedEntries = row.groupedEntries.filter((entry) => entry.itemType !== "reasoning");
         if (row.entry.itemType === "reasoning") {
           return row.active ? [{ kind: "thinking", id: row.id, createdAt: row.createdAt }] : [];
         }
-        if (row.thought === undefined) return [row];
+        if (row.thought === undefined && groupedEntries.length === row.groupedEntries.length)
+          return [row];
         const { thought: _thought, ...rest } = row;
-        return [rest];
+        return [{ ...rest, groupedEntries }];
       }
       return [row];
     });

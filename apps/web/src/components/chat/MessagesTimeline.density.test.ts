@@ -1,9 +1,20 @@
 import { describe, expect, it } from "vite-plus/test";
-import { applyTimelineDensity, type MessagesTimelineRow } from "./MessagesTimeline.logic";
+import {
+  applyTimelineDensity,
+  deriveMessagesTimelineRows,
+  type MessagesTimelineRow,
+} from "./MessagesTimeline.logic";
 
 type WorkEntry = Extract<MessagesTimelineRow, { kind: "work" }>["groupedEntries"][number];
 const entry = (id: string, itemType: string) =>
-  ({ id, itemType, createdAt: "2026-01-01T00:00:00Z" }) as unknown as WorkEntry;
+  ({
+    id,
+    label: id,
+    detail: id,
+    itemType,
+    tone: itemType === "reasoning" ? "thinking" : "tool",
+    createdAt: "2026-01-01T00:00:00Z",
+  }) as unknown as WorkEntry;
 const work = (
   id: string,
   entries: WorkEntry[],
@@ -81,5 +92,53 @@ describe("applyTimelineDensity", () => {
     ];
     const result = applyTimelineDensity(expanded, { compactWorkLog: true, hideReasoning: false });
     expect(result).toEqual(expanded);
+  });
+  it("keeps a streaming answer before the synthetic thinking indicator", () => {
+    const result = applyTimelineDensity(
+      [
+        assistant("streaming-answer", false),
+        { kind: "thinking", id: "live-activity", createdAt: null },
+      ],
+      { compactWorkLog: false, hideReasoning: true },
+    );
+    expect(result.map((row) => row.id)).toContain("streaming-answer");
+  });
+
+  it("keeps answered questions as compact work boundaries", () => {
+    const question = {
+      ...entry("question", "user_input_request"),
+      questionAnswer: {},
+    } as WorkEntry;
+    const result = applyTimelineDensity(
+      [work("question", [question]), work("tool", [entry("command", "command_execution")])],
+      { compactWorkLog: true, hideReasoning: false },
+    );
+    expect(result.map((row) => row.id)).toEqual(["question", "tool"]);
+  });
+  it("removes reasoning-only disclosures and preserves mixed group identity", () => {
+    const reasoning = entry("reasoning", "reasoning");
+    const tools = [entry("read", "command_execution"), entry("test", "command_execution")];
+    const derive = (entries: WorkEntry[]) =>
+      deriveMessagesTimelineRows({
+        timelineEntries: entries.map((entry) => ({
+          kind: "work",
+          id: entry.id,
+          createdAt: entry.createdAt,
+          entry,
+        })),
+        isWorking: false,
+        turnDiffSummaries: [],
+        supportsConversationRollback: false,
+        expandedWorkGroupIds: new Set(["work-group:reasoning"]),
+      });
+    const options = { compactWorkLog: false, hideReasoning: true };
+    expect(applyTimelineDensity(derive([reasoning]), options)).toEqual([]);
+    const mixed = applyTimelineDensity(derive([reasoning, ...tools]), options);
+    expect(mixed.find((row) => row.kind === "work-toggle")).toMatchObject({
+      groupId: "work-group:reasoning",
+      expanded: true,
+      hiddenCount: 2,
+    });
+    expect(mixed.find((row) => row.kind === "work")).toMatchObject({ groupedEntries: tools });
   });
 });
